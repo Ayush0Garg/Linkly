@@ -1,0 +1,17 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# local environment: never commit
+.env
+.env.local
+
+# each sub-project keeps its own ignore file for build output
+# (backend/target, frontend/node_modules, frontend/dist, scripts/node_modules, backend/.dev-data)
+
+# load-test output: regenerate with load-test/run.sh (keep a summary.md or two if you want them as evidence)
+load-test/results/
+*.zip

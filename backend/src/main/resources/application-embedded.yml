@@ -1,0 +1,10 @@
+# Profile "embedded": local dev + tests. NEVER use these values anywhere real.
+app:
+  auth:
+    jwt-secret: dev-only-secret-dev-only-secret-0123456789
+    cookie-secure: false     # plain http on localhost
+    bcrypt-strength: 4       # keeps tests fast
+  rate-limit:
+    enabled: false   # tests make many requests from one address; the tests that cover limits switch it on
+  analytics:
+    visitor-salt: dev-only-visitor-salt-0123456789

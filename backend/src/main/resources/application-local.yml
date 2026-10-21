@@ -1,0 +1,12 @@
+# Profile "local" (use together with "embedded"): keep the dev database between restarts.
+# Delete ./.dev-data to reset it. Tests use "embedded" alone, so they always get a throwaway database.
+app:
+  rate-limit:
+    enabled: true    # dev sees the real limits
+  redis:
+    url: ${REDIS_URL:redis://localhost:6379}   # start it with scripts/dev-redis.sh; if it is not running the app says so and degrades
+  embedded-postgres:
+    data-dir: .dev-data/pg
+    port: 5433
+  analytics:
+    geoip-db: .dev-data/geoip/dbip.mmdb   # DB-IP Lite country database, see README

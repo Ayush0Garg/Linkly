@@ -1,0 +1,35 @@
+# Profile "prod": what the Docker image runs with (SPRING_PROFILES_ACTIVE=prod). Only what differs from the defaults;
+# secrets and addresses still come from the environment (see DEPLOY.md).
+spring:
+  datasource:
+    hikari:
+      # Small pool: a free Postgres allows few connections, and the app does little concurrent database work
+      # (redirects come from the Redis cache; clicks are written in batches by one thread).
+      maximum-pool-size: ${DB_POOL_MAX:5}
+      minimum-idle: 0               # keep no idle connections around...
+      idle-timeout: 30000           # ...close one after 30 s unused, so a scale-to-zero database is free to suspend
+      max-lifetime: 300000          # recycle at 5 min, before most providers drop an old connection
+      connection-timeout: 30000     # a sleeping Neon database needs a moment to wake: wait for it instead of failing
+      initialization-fail-timeout: 60000   # same at startup: the first connection may be the one that wakes it
+      data-source-properties:
+        connectTimeout: 30          # seconds, the JDBC driver's own limit for opening a socket + TLS handshake
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info   # no /actuator/prometheus on the public internet
+
+server:
+  tomcat:
+    threads:
+      max: ${SERVER_TOMCAT_THREADS_MAX:50}   # default 200; every thread reserves stack memory, and this box has 512 MB
+
+app:
+  health:
+    full-public: false   # the full /actuator/health asks the database; public callers must not be able to wake it
+  code:
+    # No default in production: the alphabet committed to git is public, so a deployment that forgot to set its own
+    # must fail to start (Could not resolve placeholder 'CODE_ALPHABET') instead of quietly using it.
+    # Generate one with the command in DEPLOY.md, and never change it afterwards: it decides every generated code.
+    alphabet: ${CODE_ALPHABET}

@@ -1,0 +1,62 @@
+# Render Blueprint: one free web service (the API + the React app in one Docker image) and one free Key Value
+# (Valkey/Redis) instance. Postgres is NOT here: it lives at Neon (see DEPLOY.md), so its address and password are
+# entered once in the dashboard. Field names checked against https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: linkly
+    runtime: docker
+    plan: free
+    region: oregon                  # keep Key Value in the same region (private network); Neon: AWS us-west-2 (Oregon)
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    # Liveness only: it never touches the database, so health checks cannot wake a sleeping Neon compute.
+    healthCheckPath: /actuator/health/liveness
+    envVars:
+      # -- the database (Neon). Enter these when the Blueprint is created; they are never stored in git.
+      - key: DB_URL                 # jdbc:postgresql://<DIRECT host>/<db>?sslmode=require  (not the -pooler host)
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      # -- generated once by Render, then kept (do not rotate casually: it signs every session)
+      - key: JWT_SECRET             # 256-bit random, base64 (the app needs >= 32 bytes)
+        generateValue: true
+      - key: ANALYTICS_SALT         # 256-bit random, base64 (the app needs >= 16 bytes)
+        generateValue: true
+      # -- yours: make your own and NEVER change it afterwards (it decides every generated short code)
+      - key: CODE_ALPHABET
+        sync: false
+      # -- optional: leave empty to run without Google sign-in. Same public OAuth client id twice: the server checks
+      # ID tokens against GOOGLE_CLIENT_ID; the Docker build bakes VITE_GOOGLE_CLIENT_ID into the web app (Render passes
+      # service environment variables to the build as build args).
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: VITE_GOOGLE_CLIENT_ID
+        sync: false
+      # -- fixed settings
+      - key: SPA_ENABLED
+        value: "true"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE
+        value: health,info
+      - key: REDIS_REQUIRED         # the free Key Value restarts and loses its data: run without it rather than not at all
+        value: "false"
+      - key: REDIS_URL              # private-network address of the Key Value instance below
+        fromService:
+          type: keyvalue
+          name: linkly-cache
+          property: connectionString
+      # APP_BASE_URL is not set on purpose: on Render the app falls back to RENDER_EXTERNAL_URL (its own
+      # https://<name>.onrender.com address). Add APP_BASE_URL here only when you attach a custom domain.
+
+  - type: keyvalue
+    name: linkly-cache
+    plan: free
+    region: oregon
+    # Only this app (same account + region, private network) can connect: an empty allow list means no outside IPs.
+    ipAllowList: []
+    # Cached links and rate-limit counters have an expiry; the click queue (a Redis Stream) does not. With
+    # volatile-lru, a full instance evicts expiring keys and never silently deletes queued clicks.
+    maxmemoryPolicy: volatile-lru

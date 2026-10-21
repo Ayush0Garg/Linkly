@@ -1,0 +1,58 @@
+/*
+ * Design tokens. Warm paper, near-black ink, one data colour.
+ * The series blue is slot 1 of the validated data-viz palette and was re-checked against these exact surfaces
+ * (paper #f5f2eb light, #151514 dark): lightness band, chroma and 3:1 contrast all pass.
+ * Dark values are declared twice on purpose: once for the OS setting, once for the manual toggle.
+ */
+:root {
+  color-scheme: light;
+  --paper: #f5f2eb;
+  --paper-2: #ebe7dd;
+  --ink: #16140f;
+  --ink-2: #57534a;
+  --ink-3: #6f685c;
+  --rule: #d8d3c5;
+  --series-1: #2a78d6;
+  --series-wash: rgb(42 120 214 / 0.1);
+  --focus: #2a78d6;
+  --danger-text: #b02a2a;
+  /* Status marks. Always paired with an icon shape and a text label, never colour alone. */
+  --good: #0ca30c;
+  --warning: #fab219;
+  --critical: #d03b3b;
+
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --measure: 1120px;
+  --gutter: clamp(16px, 4vw, 40px);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    color-scheme: dark;
+    --paper: #151514;
+    --paper-2: #1e1e1c;
+    --ink: #efece3;
+    --ink-2: #bdb9ad;
+    --ink-3: #8f8b80;
+    --rule: #2e2d29;
+    --series-1: #3987e5;
+    --series-wash: rgb(57 135 229 / 0.14);
+    --focus: #3987e5;
+    --danger-text: #ee7a7a;
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --paper: #151514;
+  --paper-2: #1e1e1c;
+  --ink: #efece3;
+  --ink-2: #bdb9ad;
+  --ink-3: #8f8b80;
+  --rule: #2e2d29;
+  --series-1: #3987e5;
+  --series-wash: rgb(57 135 229 / 0.14);
+  --focus: #3987e5;
+  --danger-text: #ee7a7a;
+}

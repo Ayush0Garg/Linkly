@@ -1,0 +1,14 @@
+# keep the build context small and the build reproducible: everything here is rebuilt inside the image
+.git
+**/target
+**/node_modules
+**/dist
+**/.dev-data
+**/.env
+**/.env.*
+load-test/results
+docs
+*.zip
+.idea
+.vscode
+.claude

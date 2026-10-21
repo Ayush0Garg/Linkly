@@ -1,0 +1,119 @@
+spring:
+  application:
+    name: shortener
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/shortener}
+    username: ${DB_USER:shortener}
+    password: ${DB_PASSWORD:}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate   # Flyway owns the schema; Hibernate only checks it matches
+  flyway:
+    enabled: true
+
+server:
+  port: ${PORT:8080}   # platforms such as Render say which port to listen on through PORT
+  shutdown: graceful
+  # Tomcat's own handling of X-Forwarded-*: it trusts the header ONLY from private/loopback proxy addresses by default.
+  # (Spring's "framework" mode trusts it from anyone, which would let a client pick its own IP and dodge rate limits.)
+  # Behind a public-address proxy, list it: SERVER_TOMCAT_REMOTEIP_INTERNAL_PROXIES=203\.0\.113\.\d+
+  forward-headers-strategy: native
+  tomcat:
+    # The redirect echoes the destination URL (up to 8192 chars) in the Location header. Tomcat's default 8 KB
+    # response-header cap would turn those into 500s. Any proxy in front (nginx, a platform router) needs the same.
+    max-http-response-header-size: 16KB
+
+management:
+  health:
+    redis:
+      enabled: false   # replaced by our own indicator, which reports DEGRADED instead of failing the whole app
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-components: always   # names and statuses only, no details
+      status:
+        order: down,out-of-service,degraded,up,unknown
+        http-mapping:
+          degraded: 200         # degraded still serves traffic, so load balancers must keep sending it
+
+springdoc:
+  # Swagger UI is the landing page ("/" redirects to it). Set SWAGGER_ENABLED=false to switch docs off entirely.
+  api-docs:
+    enabled: ${SWAGGER_ENABLED:true}
+  swagger-ui:
+    enabled: ${SWAGGER_ENABLED:true}
+    tags-sorter: alpha
+    display-request-duration: true
+    csrf:
+      enabled: true            # Swagger UI copies the XSRF-TOKEN cookie into the X-XSRF-TOKEN header on every call
+      cookie-name: XSRF-TOKEN
+      header-name: X-XSRF-TOKEN
+
+app:
+  health:
+    full-public: true   # false (the prod profile): only /actuator/health/liveness and /readiness are public, see SecurityConfig
+  redis:
+    # Blank = Redis is OFF and the app runs in degraded mode (it says so at startup, in the logs and in /actuator/health).
+    url: ${REDIS_URL:}                 # redis://[:password@]host:6379/0   (use rediss:// for TLS)
+    required: ${REDIS_REQUIRED:false}  # true: refuse to start unless Redis is reachable (use this in production)
+    command-timeout: 100ms             # a slow Redis must never make a redirect slow
+    background-timeout: 5s             # for batch work (stream consumers), which moves far more data and is not on the redirect path
+    probe-interval: 2s                 # how often an unreachable Redis is retried / a healthy one is pinged
+    key-prefix: "linkly:"
+    cache:
+      link-ttl: 15m                    # how long a link is cached (also the bound on any staleness)
+      miss-ttl: 30s                    # how long "no such code" / "gone" is remembered
+  rate-limit:
+    enabled: true
+    # limit per `per`. degraded-limit applies while Redis is off: limits are then counted per instance only, so they are
+    # tighter. local-only: true counts in this process only (used for redirects, so they need no extra Redis round trip).
+    policies:
+      auth-ip:      { limit: 10,  per: 1m, degraded-limit: 5 }     # sign-in + register + Google, per address
+      auth-email:   { limit: 5,   per: 1m, degraded-limit: 3 }     # sign-in attempts per account, from any address
+      links-create: { limit: 30,  per: 1m, degraded-limit: 10 }    # per signed-in user
+      qr:           { limit: 60,  per: 1m, degraded-limit: 20 }    # per signed-in user
+      redirect:     { limit: 600, per: 1m, degraded-limit: 300, local-only: true }   # per address, per instance
+  auth:
+    jwt-secret: ${JWT_SECRET:}          # required, >= 32 bytes; the app refuses to start without it
+    access-token-ttl: 15m
+    refresh-token-ttl: 14d
+    cookie-secure: ${COOKIE_SECURE:true}
+    bcrypt-strength: 12
+    google-client-id: ${GOOGLE_CLIENT_ID:}   # blank = Google sign-in disabled (returns 503)
+  analytics:
+    queue-capacity: 10000
+    batch-size: 500
+    flush-interval: 1s
+    # With Redis up, clicks go through a Redis Stream (durable, shared by all instances); without it, through an
+    # in-process queue. Either way the database stores each click exactly once.
+    stream:
+      enabled: true
+      key: clicks
+      group: analytics
+      max-length: 1000000      # safety cap if the consumers fall far behind
+      claim-idle: 30s          # a message unacknowledged this long is taken over (its consumer is presumed dead)
+      claim-interval: 10s
+      poll-interval: 250ms
+      max-attempts: 5          # then the entry goes to the dead-letter stream
+    visitor-salt: ${ANALYTICS_SALT:}        # required, >= 16 bytes
+    geoip-db: ${GEOIP_DB:}                  # path to a .mmdb country database; blank = no country data
+    retention-days: 365
+  web:
+    # true = serve the React app from this process (the Docker image does). It needs index.html + assets/ at
+    # static-location; the jar has them under /static when built by the Dockerfile.
+    spa-enabled: ${SPA_ENABLED:false}
+  # Public origin used to build short URLs, e.g. https://sho.rt. On Render, RENDER_EXTERNAL_URL is the service's own
+  # https://<name>.onrender.com address; set APP_BASE_URL to override it (a custom domain).
+  base-url: ${APP_BASE_URL:${RENDER_EXTERNAL_URL:http://localhost:8080}}
+  code:
+    # Sqids alphabet: a shuffled permutation of base62 makes generated codes non-guessable.
+    # Changing it changes every generated code, so treat it like a secret and never rotate it.
+    alphabet: ${CODE_ALPHABET:k3G7QAe51FCsPW92uEOyq4B6jtDnRMdVXcHLzmgYZNpoIlw8TShxbaifvJU0Kr}
+    min-length: 6
+    prefix: linkly-
