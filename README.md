@@ -2,7 +2,7 @@
 
 A URL shortener with a click-analytics dashboard. Spring Boot 4 (Java 21), PostgreSQL, Redis and a React + TypeScript frontend, built to behave correctly under load and when things fail.
 
-**Live demo:** _not deployed yet_ (deployment guide: [DEPLOY.md](DEPLOY.md))
+**Live demo:** https://linkly-qx23.onrender.com
 
 <img src="docs/screenshots/10-overview-light.png" alt="Overview dashboard" width="860">
 
